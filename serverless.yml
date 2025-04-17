@@ -1,0 +1,138 @@
+service: service-appointment-api-new
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-dynamodb-local
+  - serverless-offline
+
+provider:
+  name: aws
+  runtime: nodejs16.x
+  stage: dev
+  region: us-east-1
+  deploymentMethod: direct # More reliable than changesets for simple applications
+  environment:
+    DYNAMODB_TABLE: ${self:service}-${self:provider.stage}
+    NODE_ENV: production
+  apiGateway:
+    apiKeys:
+      - name: ${self:service}-${self:provider.stage}-key
+        description: API Key for ${self:service} (${self:provider.stage})
+    usagePlan:
+      quota:
+        limit: 5000
+        period: MONTH
+      throttle:
+        burstLimit: 200
+        rateLimit: 100
+  stackTags: # Add stack tags for better resource management
+    Project: ${self:service}
+    Environment: ${opt:stage, self:provider.stage}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:DescribeTable
+      Resource: 
+        - !GetAtt AppointmentsTable.Arn
+        - !Join ['', [!GetAtt AppointmentsTable.Arn, '/index/*']]
+
+custom:
+  serverless-offline:
+    httpPort: 3000
+    noPrependStageInUrl: true
+  dynamodb:
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+    stages:
+      - dev
+  uniqueId: "unique123456789"
+    
+functions:
+  createAppointment:
+    handler: src/handlers/create.handler
+    events:
+      - http:
+          path: /appointments
+          method: post
+          cors: true
+          private: true # Requires API key
+
+resources:
+  Resources:
+    AppointmentsTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      UpdateReplacePolicy: Retain
+      Properties:
+        TableName: ${self:service}-${self:provider.stage}
+        BillingMode: PAY_PER_REQUEST # This uses the free tier
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: appointmentTime
+            AttributeType: S
+          - AttributeName: locationTimeKey
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: appointmentTimeIndex
+            KeySchema:
+              - AttributeName: appointmentTime
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: locationTimeIndex
+            KeySchema:
+              - AttributeName: locationTimeKey
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+    
+    ApiGatewayApiKey:
+      Type: AWS::ApiGateway::ApiKey
+      Properties:
+        Name: ${self:service}-key
+        Description: API Key for the Service Appointment API
+        Enabled: true
+
+    ApiGatewayUsagePlan:
+      Type: AWS::ApiGateway::UsagePlan
+      Properties:
+        UsagePlanName: ${self:service}-usage-plan
+        ApiStages:
+          - ApiId: !Ref ApiGatewayRestApi
+            Stage: ${self:provider.stage}
+
+    ApiGatewayUsagePlanKey:
+      Type: AWS::ApiGateway::UsagePlanKey
+      Properties:
+        KeyId: !Ref ApiGatewayApiKey
+        KeyType: API_KEY
+        UsagePlanId: !Ref ApiGatewayUsagePlan 
+
+  Outputs:
+    ServiceEndpointOutput:
+      Description: URL of the service endpoint
+      Value:
+        Fn::Join:
+          - ""
+          - - "https://"
+            - Ref: ApiGatewayRestApi
+            - ".execute-api."
+            - Ref: AWS::Region
+            - ".amazonaws.com/"
+            - ${self:provider.stage}
+    ApiKeyOutput:
+      Description: API Key name for accessing the service
+      Value: ${self:service}-${self:provider.stage}-key 

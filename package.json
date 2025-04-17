@@ -1,0 +1,39 @@
+{
+  "name": "service-appointment-api",
+  "version": "1.0.0",
+  "description": "Service appointment API using Serverless Framework and AWS Lambda",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:e2e": "RUN_E2E_TESTS=true jest tests/e2e.test.js",
+    "deploy": "npx sls deploy",
+    "start:local": "npx sls offline start",
+    "start:local:debug": "SLS_DEBUG=* npx sls offline start",
+    "dynamodb:install": "npx sls dynamodb install",
+    "dynamodb:start": "npx sls dynamodb start --migrate",
+    "dev": "concurrently \"npm run dynamodb:start\" \"npm run start:local\"",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "serverless",
+    "lambda",
+    "aws",
+    "appointments"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.0.1",
+    "eslint": "^8.40.0",
+    "jest": "^29.5.0",
+    "node-fetch": "^2.6.9",
+    "osls": "^3.51.0",
+    "serverless-dynamodb-local": "^0.2.40",
+    "serverless-offline": "^12.0.4"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1360.0",
+    "dotenv": "^16.0.3",
+    "uuid": "^9.0.0"
+  }
+}
